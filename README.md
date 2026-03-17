@@ -1,70 +1,190 @@
-# Getting Started with Create React App
+# FairCheck AI — Unified Audit Suite
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A multi-module AI auditing platform. Upload a dataset and model, select
+the audit modules you want to run, and get a unified report.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Project Structure
 
-### `npm start`
+```
+project/
+├── backend/
+│   ├── app.py                  ← Flask orchestrator (all API endpoints)
+│   ├── requirements.txt
+│   ├── tasks/
+│   │   ├── fairness.py         ← LIVE (Fairlearn)
+│   │   ├── explainability.py   ← PLACEHOLDER — replace with SHAP/LIME
+│   │   ├── compliance.py       ← PLACEHOLDER — replace with Presidio
+│   │   └── energy.py           ← PLACEHOLDER — replace with CodeCarbon
+│   ├── report/
+│   │   └── generator.py        ← Unified HTML report builder
+│   └── utils/                  ← Existing fairness utilities (unchanged)
+│       ├── fairness_metrics.py
+│       ├── mitigation.py
+│       └── model_loader.py
+└── frontend/
+    └── src/
+        ├── App.js              ← Page router
+        ├── theme.js
+        ├── index.js / index.css
+        ├── components/
+        │   └── Navbar.jsx      ← Home | Audit | Fairness | Glossary
+        ├── pages/
+        │   ├── HomePage.jsx    ← Module selector + upload
+        │   ├── AuditPage.jsx   ← Live parallel progress + results
+        │   ├── FairnessPage.jsx← Deep fairness analysis + mitigation
+        │   └── GlossaryPage.jsx← Static glossary of all terms
+        └── utils/
+            └── api.js          ← All API calls
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Setup
 
-### `npm test`
+### Backend
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+cd backend
+python -m venv venv
+# Windows:  venv\Scripts\activate
+# Mac/Linux: source venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
-### `npm run build`
+Flask runs on **http://127.0.0.1:5000**
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Frontend
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+cd frontend
+npm install
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+React runs on **http://localhost:3000**
 
-### `npm run eject`
+---
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## New API Endpoints (Orchestrator)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/audit/start` | Start a multi-module job (returns `job_id`) |
+| GET  | `/audit/status/:id` | Per-module status (`queued/running/done/error`) |
+| GET  | `/audit/result/:id` | Full results once done |
+| GET  | `/audit/report/:id` | Download unified HTML report |
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+The orchestrator fans out one thread per selected module — they run in
+**true parallel**. The frontend polls `/audit/status/:id` every 1.2 s.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+---
 
-## Learn More
+## How to Implement Your Module
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Each module in `backend/tasks/` follows the same contract:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```python
+def run_<module>(csv_path, target, sensitive, model_path=None, **kwargs) -> dict:
+    """
+    - csv_path:   path to the uploaded CSV on disk
+    - target:     target column name (string)
+    - sensitive:  sensitive attribute column name (string)
+    - model_path: path to uploaded model file, or None
+    - **kwargs:   absorb unused params from orchestrator
+    
+    Return a JSON-serialisable dict.
+    Raise exceptions freely — orchestrator catches and marks module as error.
+    """
+```
 
-### Code Splitting
+### Explainability (`tasks/explainability.py`)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```python
+import shap, pandas as pd
+from utils.model_loader import load_model
 
-### Analyzing the Bundle Size
+def run_explainability(csv_path, target, **kwargs):
+    df = pd.read_csv(csv_path)
+    X  = df.drop(columns=[target])
+    model, _ = load_model(...)  # use model_path from kwargs
+    
+    explainer   = shap.Explainer(model, X)
+    shap_values = explainer(X)
+    
+    return {
+        "module": "explainability",
+        "status": "ok",
+        "shap_mean_abs": dict(zip(X.columns, shap_values.abs.mean(0).values.tolist())),
+        "top_features":  sorted(X.columns, key=lambda c: shap_values[:,c].abs.mean(), reverse=True)[:10],
+    }
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Compliance (`tasks/compliance.py`)
 
-### Making a Progressive Web App
+```python
+from presidio_analyzer import AnalyzerEngine
+import pandas as pd
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+def run_compliance(csv_path, **kwargs):
+    df      = pd.read_csv(csv_path)
+    engine  = AnalyzerEngine()
+    findings = {}
+    
+    for col in df.select_dtypes(include="object").columns:
+        sample = df[col].dropna().astype(str).tolist()[:200]
+        hits   = [engine.analyze(text=t, language="en") for t in sample]
+        entity_types = [r.entity_type for row in hits for r in row]
+        if entity_types:
+            findings[col] = list(set(entity_types))
+    
+    return {
+        "module":  "compliance",
+        "status":  "ok",
+        "pii_findings": findings,
+        "columns_at_risk": list(findings.keys()),
+        "risk_score": len(findings) / max(len(df.columns), 1),
+    }
+```
 
-### Advanced Configuration
+### Energy (`tasks/energy.py`)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```python
+from codecarbon import EmissionsTracker
+from utils.mitigation import train_baseline_only
+import pandas as pd
 
-### Deployment
+def run_energy(csv_path, target, sensitive, **kwargs):
+    df      = pd.read_csv(csv_path)
+    tracker = EmissionsTracker(project_name="ai_audit", save_to_file=False)
+    tracker.start()
+    train_baseline_only(df, target, sensitive)
+    emissions = tracker.stop()   # kg CO2eq
+    
+    return {
+        "module":       "energy",
+        "status":       "ok",
+        "emissions_kg": emissions,
+    }
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
+## Report
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Once all selected modules finish, the **Download Report** button appears on
+the Audit page. The report is a self-contained HTML file that renders in
+any browser — no server needed after download.
+
+---
+
+## Supported Model Formats
+
+| Format | Analysis | Mitigation |
+|--------|----------|------------|
+| `.joblib` / `.pkl` | ✅ | ✅ |
+| `.onnx`            | ✅ | ❌ |
+| `.keras` / `.h5`   | ✅ | ❌ |
+| `.pt` / `.pth`     | ✅ | ❌ |
