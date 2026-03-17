@@ -214,12 +214,17 @@ def _run_analysis(df, target, sensitive, *, pred_col=None, train_baseline_flag=T
             feat_cols = [c for c in df.columns if c not in (target, sensitive)]
             X = df[feat_cols]
             if wrap_model_flag:
-                transformer = build_transformer(X)
+                # transformer = build_transformer(X)
+                transformer, _strategy, _te = build_transformer(df, target, sensitive)
                 X = transformer.fit_transform(X)
             df["y_pred"] = model.predict(X)
         pred_col = "y_pred"
     elif train_baseline_flag:
-        clf = train_baseline_only(df, target, sensitive)
+        # clf = train_baseline_only(df, target, sensitive)
+        baseline_res = train_baseline_only(df, target, sensitive)
+        clf = baseline_res.get("pipeline")
+        if clf is None:
+            raise ValueError("Baseline training did not return a trained pipeline.")
         feat_cols = [c for c in df.columns if c not in (target, sensitive)]
         df["y_pred"] = clf.predict(df[feat_cols])
         pred_col = "y_pred"

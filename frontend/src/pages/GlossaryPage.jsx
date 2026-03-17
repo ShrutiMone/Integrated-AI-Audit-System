@@ -1,6 +1,6 @@
 // frontend/src/pages/GlossaryPage.jsx
 import React, { useState } from "react";
-import { T } from "../theme";
+import { useTheme } from "../theme";
 
 const GLOSSARY = [
   // ── Fairness ──────────────────────────────────────────────────────────────
@@ -147,14 +147,16 @@ const GLOSSARY = [
   },
 ];
 
-const MODULE_COLORS = {
-  fairness:       { color: T.amber,  dim: T.amberDim,  label: "Fairness"        },
-  explainability: { color: T.violet, dim: T.violetDim, label: "Explainability"  },
-  compliance:     { color: T.green,  dim: T.greenDim,  label: "Compliance"      },
-  energy:         { color: T.sky,    dim: T.skyDim,    label: "Energy"          },
-};
-
 const GlossaryPage = () => {
+  const { T } = useTheme();
+
+  const MODULE_COLORS = {
+    fairness:       { color: T.amber,  dim: T.amberDim,  label: "Fairness"        },
+    explainability: { color: T.violet, dim: T.violetDim, label: "Explainability"  },
+    compliance:     { color: T.green,  dim: T.greenDim,  label: "Compliance"      },
+    energy:         { color: T.sky,    dim: T.skyDim,    label: "Energy"          },
+  };
+
   const [search,    setSearch]    = useState("");
   const [activeTag, setActiveTag] = useState("all");
   const [expanded,  setExpanded]  = useState(null);

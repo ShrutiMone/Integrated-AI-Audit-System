@@ -5,14 +5,16 @@ import HomePage    from "./pages/HomePage";
 import AuditPage   from "./pages/AuditPage";
 import FairnessPage from "./pages/FairnessPage";
 import GlossaryPage from "./pages/GlossaryPage";
-import { T } from "./theme";
+import { ThemeProvider, useTheme } from "./theme";
 
-function App() {
+function AppContent() {
   // currentPage: "home" | "audit" | "fairness" | "glossary"
   const [currentPage,  setCurrentPage]  = useState("home");
   const [auditParams,  setAuditParams]  = useState(null);
   // passed to FairnessPage when navigating from audit results
   const [fairnessPrefill, setFairnessPrefill] = useState({});
+
+  const { T } = useTheme();
 
   const navigate = (page) => setCurrentPage(page);
 
@@ -60,6 +62,14 @@ function App() {
         <GlossaryPage />
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

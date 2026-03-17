@@ -1,122 +1,7 @@
 // frontend/src/pages/HomePage.jsx
+/* eslint-disable no-undef */
 import React, { useState, useRef } from "react";
-import { T } from "../theme";
-
-const MODULES = [
-  {
-    id:    "fairness",
-    label: "Fairness",
-    icon:  "⚖",
-    color: T.amber,
-    dim:   T.amberDim,
-    desc:  "Audit demographic parity, equalized odds, and group-level fairness metrics using Fairlearn.",
-    tags:  ["Fairlearn", "Demographic Parity", "Equalized Odds"],
-    requires: ["CSV dataset", "Target column", "Sensitive attribute"],
-    live:  true,
-  },
-  {
-    id:    "explainability",
-    label: "Explainability",
-    icon:  "🔍",
-    color: T.violet,
-    dim:   T.violetDim,
-    desc:  "Generate SHAP values and LIME explanations to understand which features drive model predictions.",
-    tags:  ["SHAP", "LIME", "Feature Importance"],
-    requires: ["CSV dataset", "Target column", "Model file (optional)"],
-    live:  false,
-  },
-  {
-    id:    "compliance",
-    label: "Compliance",
-    icon:  "🛡",
-    color: T.green,
-    dim:   T.greenDim,
-    desc:  "Scan your dataset for personally identifiable information (PII) using Microsoft Presidio.",
-    tags:  ["Presidio", "PII Detection", "GDPR"],
-    requires: ["CSV dataset"],
-    live:  false,
-  },
-  {
-    id:    "energy",
-    label: "Energy Efficiency",
-    icon:  "⚡",
-    color: T.sky,
-    dim:   T.skyDim,
-    desc:  "Measure CO₂ emissions and energy consumption during model training and inference using CodeCarbon.",
-    tags:  ["CodeCarbon", "CO₂", "Sustainability"],
-    requires: ["CSV dataset", "Model file (optional)"],
-    live:  false,
-  },
-];
-
-function ModuleCard({ module, selected, onToggle }) {
-  return (
-    <div
-      onClick={() => onToggle(module.id)}
-      style={{
-        background:   selected ? module.dim : T.surface,
-        border:       `1.5px solid ${selected ? module.color : T.border}`,
-        borderRadius: 12,
-        padding:      "18px 20px",
-        cursor:       "pointer",
-        transition:   "all .18s",
-        position:     "relative",
-        userSelect:   "none",
-      }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = module.color + "88"; }}
-      onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = T.border; }}
-    >
-      {/* Live / placeholder badge */}
-      <div style={{
-        position: "absolute", top: 14, right: 14,
-        fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-        background: module.live ? T.greenDim : T.surfaceHi,
-        color:      module.live ? T.green    : T.textDim,
-        border:     `1px solid ${module.live ? T.green + "44" : T.border}`,
-        letterSpacing: "0.04em",
-      }}>
-        {module.live ? "LIVE" : "SOON"}
-      </div>
-
-      {/* Checkbox */}
-      <div style={{
-        position: "absolute", top: 14, left: 14,
-        width: 18, height: 18, borderRadius: 5,
-        border: `2px solid ${selected ? module.color : T.border}`,
-        background: selected ? module.color : "transparent",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 11, color: "#000", fontWeight: 900,
-        transition: "all .15s",
-      }}>
-        {selected && "✓"}
-      </div>
-
-      {/* Icon + title */}
-      <div style={{ marginTop: 8, marginLeft: 28, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 20 }}>{module.icon}</span>
-        <span style={{ color: "#fff", fontSize: 15, fontWeight: 800 }}>{module.label}</span>
-      </div>
-
-      <p style={{ color: T.text, fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{module.desc}</p>
-
-      {/* Tags */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-        {module.tags.map(t => (
-          <span key={t} style={{
-            fontSize: 11, padding: "2px 8px", borderRadius: 10,
-            background: module.dim, color: module.color,
-            border: `1px solid ${module.color}44`,
-          }}>{t}</span>
-        ))}
-      </div>
-
-      {/* Requires */}
-      <div style={{ color: T.textDim, fontSize: 11 }}>
-        Requires: {module.requires.join(", ")}
-      </div>
-    </div>
-  );
-}
+import { useTheme } from "../theme";
 
 function readCSVHeaders(file) {
   return new Promise((resolve, reject) => {
@@ -131,6 +16,124 @@ function readCSVHeaders(file) {
 }
 
 const HomePage = ({ onStartAudit }) => {
+  const { T } = useTheme();
+
+  const MODULES = [
+    {
+      id:    "fairness",
+      label: "Fairness",
+      icon:  "⚖",
+      color: T.amber,
+      dim:   T.amberDim,
+      desc:  "Audit demographic parity, equalized odds, and group-level fairness metrics using Fairlearn.",
+      tags:  ["Fairlearn", "Demographic Parity", "Equalized Odds"],
+      requires: ["CSV dataset", "Target column", "Sensitive attribute"],
+      live:  true,
+    },
+    {
+      id:    "explainability",
+      label: "Explainability",
+      icon:  "🔍",
+      color: T.violet,
+      dim:   T.violetDim,
+      desc:  "Generate SHAP values and LIME explanations to understand which features drive model predictions.",
+      tags:  ["SHAP", "LIME", "Feature Importance"],
+      requires: ["CSV dataset", "Target column", "Model file (optional)"],
+      live:  false,
+    },
+    {
+      id:    "compliance",
+      label: "Compliance",
+      icon:  "🛡",
+      color: T.green,
+      dim:   T.greenDim,
+      desc:  "Scan your dataset for personally identifiable information (PII) using Microsoft Presidio.",
+      tags:  ["Presidio", "PII Detection", "GDPR"],
+      requires: ["CSV dataset"],
+      live:  false,
+    },
+    {
+      id:    "energy",
+      label: "Energy Efficiency",
+      icon:  "⚡",
+      color: T.sky,
+      dim:   T.skyDim,
+      desc:  "Measure CO₂ emissions and energy consumption during model training and inference using CodeCarbon.",
+      tags:  ["CodeCarbon", "CO₂", "Sustainability"],
+      requires: ["CSV dataset", "Model file (optional)"],
+      live:  false,
+    },
+  ];
+
+  function ModuleCard({ module, selected, onToggle }) {
+    return (
+      <div
+        onClick={() => onToggle(module.id)}
+        style={{
+          background:   selected ? module.dim : T.surface,
+          border:       `1.5px solid ${selected ? module.color : T.border}`,
+          borderRadius: 12,
+          padding:      "18px 20px",
+          cursor:       "pointer",
+          transition:   "all .18s",
+          position:     "relative",
+          userSelect:   "none",
+        }}
+        onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = module.color + "88"; }}
+        onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = T.border; }}
+      >
+        {/* Live / placeholder badge */}
+        <div style={{
+          position: "absolute", top: 14, right: 14,
+          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
+          background: module.live ? T.greenDim : T.surfaceHi,
+          color:      module.live ? T.green    : T.textDim,
+          border:     `1px solid ${module.live ? T.green + "44" : T.border}`,
+          letterSpacing: "0.04em",
+        }}>
+          {module.live ? "LIVE" : "SOON"}
+        </div>
+
+        {/* Checkbox */}
+        <div style={{
+          position: "absolute", top: 14, left: 14,
+          width: 18, height: 18, borderRadius: 5,
+          border: `2px solid ${selected ? module.color : T.border}`,
+          background: selected ? module.color : "transparent",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, color: "#000", fontWeight: 900,
+          transition: "all .15s",
+        }}>
+          {selected && "✓"}
+        </div>
+
+        {/* Icon + title */}
+        <div style={{ marginTop: 8, marginLeft: 28, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 20 }}>{module.icon}</span>
+          <span style={{ color: "#fff", fontSize: 15, fontWeight: 800 }}>{module.label}</span>
+        </div>
+
+        <p style={{ color: T.text, fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{module.desc}</p>
+
+        {/* Tags */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {module.tags.map(t => (
+            <span key={t} style={{
+              fontSize: 11, padding: "2px 8px", borderRadius: 10,
+              background: module.dim, color: module.color,
+              border: `1px solid ${module.color}44`,
+            }}>{t}</span>
+          ))}
+        </div>
+
+        {/* Requires */}
+        <div style={{ color: T.textDim, fontSize: 11 }}>
+          Requires: {module.requires.join(", ")}
+        </div>
+      </div>
+    );
+  }
+
   const [selected, setSelected]   = useState(new Set(["fairness"]));
   const [csvFile,  setCsvFile]    = useState(null);
   const [headers,  setHeaders]    = useState([]);

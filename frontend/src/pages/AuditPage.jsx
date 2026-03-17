@@ -1,150 +1,151 @@
 // frontend/src/pages/AuditPage.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { T } from "../theme";
+import { useTheme } from "../theme";
 import { startAudit, getAuditStatus, getAuditResult, getReportUrl } from "../utils/api";
-
-const MODULE_META = {
-  fairness:       { label: "Fairness",        icon: "⚖", color: T.amber  },
-  explainability: { label: "Explainability",   icon: "🔍", color: T.violet },
-  compliance:     { label: "Compliance",       icon: "🛡", color: T.green  },
-  energy:         { label: "Energy",           icon: "⚡", color: T.sky    },
-};
-
-const STATUS_LABEL = {
-  queued:  { text: "Queued",   color: T.textDim },
-  running: { text: "Running…", color: T.amber   },
-  done:    { text: "Done",     color: T.green   },
-  error:   { text: "Error",    color: T.red     },
-};
-
-function Spinner({ color }) {
-  return (
-    <div style={{
-      width: 14, height: 14, borderRadius: "50%",
-      border: `2px solid ${color}44`, borderTop: `2px solid ${color}`,
-      animation: "spin .7s linear infinite", flexShrink: 0,
-    }} />
-  );
-}
-
-function ModuleStatusCard({ moduleId, status, result }) {
-  const meta = MODULE_META[moduleId] || { label: moduleId, icon: "●", color: T.textDim };
-  const s    = STATUS_LABEL[status] || { text: status, color: T.textDim };
-  const isPlaceholder = result?.status === "placeholder";
-  const hasError      = status === "error" || result?.error;
-
-  return (
-    <div style={{
-      background: T.surface, border: `1px solid ${status === "done" ? meta.color + "55" : T.border}`,
-      borderRadius: 10, padding: "16px 18px",
-      borderLeft: `3px solid ${meta.color}`,
-      transition: "border-color .3s",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>{meta.icon}</span>
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{meta.label}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {status === "running" && <Spinner color={meta.color} />}
-          <span style={{ color: s.color, fontSize: 12, fontWeight: 700 }}>{s.text}</span>
-        </div>
-      </div>
-
-      {/* Progress indicator */}
-      {status === "running" && (
-        <div style={{ height: 3, background: T.border, borderRadius: 3, overflow: "hidden" }}>
-          <div style={{
-            height: "100%", borderRadius: 3, background: meta.color,
-            animation: "indeterminate 1.5s ease-in-out infinite",
-          }} />
-        </div>
-      )}
-
-      {/* Result summary */}
-      {status === "done" && result && (
-        <div style={{ marginTop: 10 }}>
-          {isPlaceholder && (
-            <div style={{ color: T.amber, fontSize: 12, padding: "6px 10px", background: T.amberDim, borderRadius: 5, marginBottom: 6 }}>
-              ⚠ Placeholder — module not yet implemented
-            </div>
-          )}
-          {hasError && !isPlaceholder && (
-            <div style={{ color: T.red, fontSize: 12, padding: "6px 10px", background: T.redDim, borderRadius: 5 }}>
-              Error: {result.error}
-            </div>
-          )}
-          {moduleId === "fairness" && result.overall && (
-            <div style={{ fontSize: 12, color: T.textDim }}>
-              {Object.entries(result.overall).slice(0, 3).map(([k, v]) => (
-                <span key={k} style={{ marginRight: 14 }}>
-                  {k.replace(" Difference", " Δ")}: <strong style={{ color: Math.abs(v) < 0.1 ? T.green : T.amber }}>{typeof v === "number" ? v.toFixed(4) : v}</strong>
-                </span>
-              ))}
-            </div>
-          )}
-          {!hasError && !isPlaceholder && moduleId !== "fairness" && (
-            <div style={{ color: T.green, fontSize: 12 }}>Results ready — see report below</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Fairness detail inline ──────────────────────────────────────────────────
-function FairnessDetail({ data }) {
-  if (!data || data.error) return null;
-  const overall  = data.overall || {};
-  const perf     = data.performance || {};
-  const suggs    = data.suggestions || [];
-
-  const MetricRow = ({ label, value }) => {
-    const color = Math.abs(value) < 0.1 ? T.green : Math.abs(value) < 0.2 ? T.amber : T.red;
-    return (
-      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-        <span style={{ color: T.text, fontSize: 13 }}>{label}</span>
-        <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color, background: color+"18", padding: "2px 10px", borderRadius: 5, border: `1px solid ${color}33` }}>
-          {typeof value === "number" ? value.toFixed(4) : String(value)}
-        </span>
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16 }}>
-          <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Fairness Metrics</div>
-          {Object.entries(overall).map(([k,v]) => <MetricRow key={k} label={k} value={v} />)}
-        </div>
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16 }}>
-          <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Performance</div>
-          {Object.entries(perf).filter(([,v])=>typeof v==="number").map(([k,v])=>(
-            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-              <span style={{ color: T.text, fontSize: 13 }}>{k}</span>
-              <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: T.sky }}>{v.toFixed(4)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {suggs.length > 0 && (
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, marginTop: 14 }}>
-          <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Suggestions</div>
-          {suggs.map((s,i) => (
-            <div key={i} style={{ fontSize: 13, color: T.text, padding: "6px 0", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 8 }}>
-              <span style={{ color: T.amber }}>›</span>{s}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 // ── Main AuditPage ──────────────────────────────────────────────────────────
 const AuditPage = ({ auditParams, onBack, onGoFairness }) => {
+  const { T } = useTheme();
+
+  const MODULE_META = {
+    fairness:       { label: "Fairness",        icon: "⚖", color: T.amber  },
+    explainability: { label: "Explainability",   icon: "🔍", color: T.violet },
+    compliance:     { label: "Compliance",       icon: "🛡", color: T.green  },
+    energy:         { label: "Energy",           icon: "⚡", color: T.sky    },
+  };
+
+  const STATUS_LABEL = {
+    queued:  { text: "Queued",   color: T.textDim },
+    running: { text: "Running…", color: T.amber   },
+    done:    { text: "Done",     color: T.green   },
+    error:   { text: "Error",    color: T.red     },
+  };
+
+  function Spinner({ color }) {
+    return (
+      <div style={{
+        width: 14, height: 14, borderRadius: "50%",
+        border: `2px solid ${color}44`, borderTop: `2px solid ${color}`,
+        animation: "spin .7s linear infinite", flexShrink: 0,
+      }} />
+    );
+  }
+
+  function ModuleStatusCard({ moduleId, status, result }) {
+    const meta = MODULE_META[moduleId] || { label: moduleId, icon: "●", color: T.textDim };
+    const s    = STATUS_LABEL[status] || { text: status, color: T.textDim };
+    const isPlaceholder = result?.status === "placeholder";
+    const hasError      = status === "error" || result?.error;
+
+    return (
+      <div style={{
+        background: T.surface, border: `1px solid ${status === "done" ? meta.color + "55" : T.border}`,
+        borderRadius: 10, padding: "16px 18px",
+        borderLeft: `3px solid ${meta.color}`,
+        transition: "border-color .3s",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{meta.icon}</span>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{meta.label}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {status === "running" && <Spinner color={meta.color} />}
+            <span style={{ color: s.color, fontSize: 12, fontWeight: 700 }}>{s.text}</span>
+          </div>
+        </div>
+
+        {/* Progress indicator */}
+        {status === "running" && (
+          <div style={{ height: 3, background: T.border, borderRadius: 3, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 3, background: meta.color,
+              animation: "indeterminate 1.5s ease-in-out infinite",
+            }} />
+          </div>
+        )}
+
+        {/* Result summary */}
+        {status === "done" && result && (
+          <div style={{ marginTop: 10 }}>
+            {isPlaceholder && (
+              <div style={{ color: T.amber, fontSize: 12, padding: "6px 10px", background: T.amberDim, borderRadius: 5, marginBottom: 6 }}>
+                ⚠ Placeholder — module not yet implemented
+              </div>
+            )}
+            {hasError && !isPlaceholder && (
+              <div style={{ color: T.red, fontSize: 12, padding: "6px 10px", background: T.redDim, borderRadius: 5 }}>
+                Error: {result.error}
+              </div>
+            )}
+            {moduleId === "fairness" && result.overall && (
+              <div style={{ fontSize: 12, color: T.textDim }}>
+                {Object.entries(result.overall).slice(0, 3).map(([k, v]) => (
+                  <span key={k} style={{ marginRight: 14 }}>
+                    {k.replace(" Difference", " Δ")}: <strong style={{ color: Math.abs(v) < 0.1 ? T.green : T.amber }}>{typeof v === "number" ? v.toFixed(4) : v}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
+            {!hasError && !isPlaceholder && moduleId !== "fairness" && (
+              <div style={{ color: T.green, fontSize: 12 }}>Results ready — see report below</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Fairness detail inline ──────────────────────────────────────────────────
+  function FairnessDetail({ data }) {
+    if (!data || data.error) return null;
+    const overall  = data.overall || {};
+    const perf     = data.performance || {};
+    const suggs    = data.suggestions || [];
+
+    const MetricRow = ({ label, value }) => {
+      const color = Math.abs(value) < 0.1 ? T.green : Math.abs(value) < 0.2 ? T.amber : T.red;
+      return (
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ color: T.text, fontSize: 13 }}>{label}</span>
+          <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color, background: color+"18", padding: "2px 10px", borderRadius: 5, border: `1px solid ${color}33` }}>
+            {typeof value === "number" ? value.toFixed(4) : String(value)}
+          </span>
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16 }}>
+            <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Fairness Metrics</div>
+            {Object.entries(overall).map(([k,v]) => <MetricRow key={k} label={k} value={v} />)}
+          </div>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16 }}>
+            <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Performance</div>
+            {Object.entries(perf).filter(([,v])=>typeof v==="number").map(([k,v])=>(
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+                <span style={{ color: T.text, fontSize: 13 }}>{k}</span>
+                <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: T.sky }}>{v.toFixed(4)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {suggs.length > 0 && (
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, marginTop: 14 }}>
+            <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Suggestions</div>
+            {suggs.map((s,i) => (
+              <div key={i} style={{ fontSize: 13, color: T.text, padding: "6px 0", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 8 }}>
+                <span style={{ color: T.amber }}>›</span>{s}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const [jobId,        setJobId]        = useState(null);
   const [jobStatus,    setJobStatus]    = useState("starting");
   const [moduleStatus, setModuleStatus] = useState({});

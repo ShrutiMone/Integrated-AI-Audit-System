@@ -1,0 +1,16 @@
+EmployeeID,Age,Gender,Department,Experience,Education,PerformanceScore,Hired
+1,25,Male,Engineering,2,Bachelor,78,Yes
+2,30,Female,Marketing,4,Master,85,Yes
+3,28,Female,HR,3,Bachelor,70,No
+4,35,Male,Engineering,8,Master,90,Yes
+5,40,Female,Finance,10,Bachelor,65,No
+6,22,Male,Support,1,Bachelor,60,No
+7,31,Female,Engineering,5,PhD,88,Yes
+8,29,Male,Marketing,4,Bachelor,75,Yes
+9,45,Male,Finance,15,Master,80,Yes
+10,26,Female,Support,2,Bachelor,68,No
+11,37,Female,HR,9,Master,82,Yes
+12,33,Male,Engineering,6,Bachelor,77,Yes
+13,24,Male,Support,1,Bachelor,55,No
+14,41,Female,Finance,12,PhD,83,Yes
+15,27,Male,Marketing,3,Bachelor,73,No

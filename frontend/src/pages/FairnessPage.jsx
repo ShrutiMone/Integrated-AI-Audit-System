@@ -129,24 +129,56 @@ function FairnessScorecard({ overall }) {
   if (!overall) return null;
   const values = Object.values(overall).filter(v => typeof v === "number");
   if (!values.length) return null;
-  const avg   = values.reduce((s, v) => s + Math.abs(v), 0) / values.length;
-  const score = Math.max(0, Math.round((1 - avg) * 100));
+  const avgBias = values.reduce((s, v) => s + Math.abs(v), 0) / values.length;
+  const score = Math.max(0, Math.round((1 - avgBias) * 100));
   const color = score >= 80 ? T.green : score >= 60 ? T.amber : T.red;
-  const label = score >= 80 ? "FAIR" : score >= 60 ? "REVIEW" : "BIASED";
+  const label = score >= 80 ? "FAIR" : score >= 60 ? "MODERATE BIAS" : "HIGH BIAS";
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+    <Card accent={color} style={{ textAlign: "center", padding: "24px 20px" }}>
+      <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+        Overall Fairness Score
+      </div>
+      <div style={{ fontSize: 52, fontWeight: 900, color, lineHeight: 1, letterSpacing: "-0.04em" }}>
+        {score}
+      </div>
+      <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>/ 100</div>
       <div style={{
-        width: 72, height: 72, borderRadius: "50%",
-        border: `4px solid ${color}`, display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", flexShrink: 0,
+        display: "inline-block", marginTop: 10,
+        fontSize: 11, fontWeight: 700, padding: "3px 12px", borderRadius: 20,
+        background: color + "22", color, border: `1px solid ${color}44`,
+        letterSpacing: "0.06em",
       }}>
-        <span style={{ color, fontSize: 22, fontWeight: 900 }}>{score}</span>
-        <span style={{ color, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>/ 100</span>
+        {label}
       </div>
-      <div>
-        <div style={{ color, fontSize: 18, fontWeight: 900, letterSpacing: "0.04em" }}>{label}</div>
-        <div style={{ color: T.textDim, fontSize: 12, marginTop: 2 }}>Overall fairness score based on metric averages</div>
+    </Card>
+  );
+}
+
+function GroupCard({ group, metrics }) {
+  return (
+    <div style={{
+      background: T.surfaceHi, border: `1px solid ${T.border}`,
+      borderRadius: 8, padding: "14px 16px",
+    }}>
+      <div style={{
+        color: T.violet, fontSize: 12, fontWeight: 700,
+        fontFamily: "monospace", marginBottom: 10,
+        borderBottom: `1px solid ${T.border}`, paddingBottom: 8,
+      }}>
+        Group: {group}
       </div>
+      {Object.entries(metrics).map(([name, val]) => (
+        <div key={name} style={{
+          display: "flex", justifyContent: "space-between",
+          padding: "5px 0", borderBottom: `1px solid ${T.border}33`,
+        }}>
+          <span style={{ color: T.textDim, fontSize: 12 }}>{name}</span>
+          <span style={{ color: T.text, fontSize: 12, fontWeight: 600, fontFamily: "monospace" }}>
+            {val === null || val === undefined ? "N/A" : typeof val === "number" ? val.toFixed(4) : String(val)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -302,13 +334,33 @@ function UploadStep({ onSubmit }) {
 /* ── ReportStep ─────────────────────────────────────────────────────────── */
 function ReportStep({ results, onReset }) {
   if (!results) return null;
-  if (results.error) return (
-    <div style={{ background: T.redDim, border: `1px solid ${T.red}44`, borderRadius: 8, padding: 16, color: T.red, margin: "24px 0" }}>
-      Error: {results.error}
-    </div>
-  );
+  if (results.error) {
+    return (
+      <div style={{
+        maxWidth: 1100, margin: "0 auto", padding: "24px 0",
+        fontFamily: T.font,
+      }}>
+        <div style={{
+          background: T.redDim, border: `1px solid ${T.red}44`,
+          borderRadius: 10, padding: "16px 20px", color: T.red,
+        }}>
+          ⚠ {results.error}
+        </div>
+      </div>
+    );
+  }
 
-  const { overall, by_group, suggestions, performance, data_quality } = results;
+  const {
+    overall,
+    by_group,
+    suggestions,
+    performance,
+    data_quality,
+    metrics_baseline_test,
+    performance_baseline_test,
+  } = results;
+
+  const perfSource = performance || results.performance_baseline;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, paddingTop: 24 }}>
@@ -320,75 +372,145 @@ function ReportStep({ results, onReset }) {
         }}>← New Analysis</button>
       </div>
 
-      <Card accent={T.amber}>
+      <div style={{ color: T.textDim, fontSize: 13 }}>
+        Showing bias metrics across sensitive groups.
+        {results.strategy && <span> · Strategy: <code style={{ color: T.sky }}>{results.strategy}</code></span>}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14 }}>
         <FairnessScorecard overall={overall} />
-        <SectionTitle>Overall Fairness Metrics</SectionTitle>
-        {overall && Object.entries(overall).map(([k, v]) => <MetricRow key={k} label={k} value={v} />)}
-      </Card>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+          {data_quality && (
+            <>
+              <Card accent={T.sky}>
+                <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Dataset Size
+                </div>
+                <div style={{ color: "#fff", fontSize: 28, fontWeight: 800, marginTop: 6 }}>
+                  {data_quality.num_rows?.toLocaleString()}
+                </div>
+                <div style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>
+                  rows · {data_quality.num_columns} columns
+                </div>
+              </Card>
+              <Card accent={data_quality.duplicate_rows > 0 ? T.amber : T.green}>
+                <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Duplicates
+                </div>
+                <div style={{
+                  color: data_quality.duplicate_rows > 0 ? T.amber : T.green,
+                  fontSize: 28, fontWeight: 800, marginTop: 6,
+                }}>
+                  {data_quality.duplicate_rows}
+                </div>
+                <div style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>
+                  {Object.keys(data_quality.missing_columns || {}).length} cols with missing values
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+      </div>
 
-      {performance && !performance.error && (
-        <Card accent={T.sky}>
-          <SectionTitle>Model Performance</SectionTitle>
-          {Object.entries(performance).map(([k, v]) => <PerfRow key={k} label={k} value={v} />)}
-        </Card>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {overall && (
+          <Card accent={T.amber}>
+            <SectionTitle>Fairness Metrics</SectionTitle>
+            {Object.entries(overall).map(([k, v]) => (
+              <MetricRow key={k} label={k} value={v} />
+            ))}
+          </Card>
+        )}
+
+        {perfSource && !perfSource.error && (
+          <Card accent={T.sky}>
+            <SectionTitle>Performance Metrics</SectionTitle>
+            {Object.entries(perfSource).map(([k, v]) => (
+              <PerfRow key={k} label={k} value={v} />
+            ))}
+          </Card>
+        )}
+      </div>
+
+      {(metrics_baseline_test || performance_baseline_test) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {metrics_baseline_test?.overall && (
+            <Card>
+              <SectionTitle>Holdout Fairness Metrics</SectionTitle>
+              {Object.entries(metrics_baseline_test.overall).map(([k, v]) => (
+                <MetricRow key={k} label={k} value={v} />
+              ))}
+            </Card>
+          )}
+          {performance_baseline_test && !performance_baseline_test.error && (
+            <Card>
+              <SectionTitle>Holdout Performance Metrics</SectionTitle>
+              {Object.entries(performance_baseline_test).map(([k, v]) => (
+                <PerfRow key={k} label={k} value={v} />
+              ))}
+            </Card>
+          )}
+        </div>
       )}
 
-      {by_group && Object.keys(by_group).length > 0 && (
-        <Card>
-          <SectionTitle>Metrics by Group</SectionTitle>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}`, color: T.textDim, textAlign: "left" }}>Group</th>
-                  {Object.keys(Object.values(by_group)[0] || {}).map(h => (
-                    <th key={h} style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}`, color: T.textDim, textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(by_group).map(([grp, metrics]) => (
-                  <tr key={grp}>
-                    <td style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}`, color: "#fff", fontWeight: 700 }}>{grp}</td>
-                    {Object.entries(metrics).map(([k, v]) => (
-                      <td key={k} style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}`, fontFamily: "monospace", color: T.text }}>
-                        {typeof v === "number" ? v.toFixed(4) : String(v)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {suggestions?.length > 0 && (
+        <Card style={{ borderLeft: `3px solid ${T.amber}`, borderRadius: "0 10px 10px 0" }}>
+          <SectionTitle>⚡ Suggested Improvements</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {suggestions.map((s, i) => (
+              <div key={i} style={{
+                display: "flex", gap: 10, alignItems: "flex-start",
+                padding: "8px 12px", borderRadius: 6,
+                background: T.surfaceHi, border: `1px solid ${T.border}`,
+              }}>
+                <span style={{ color: T.amber, fontSize: 14, flexShrink: 0, marginTop: 1 }}>›</span>
+                <span style={{ color: T.text, fontSize: 13, lineHeight: 1.5 }}>{s}</span>
+              </div>
+            ))}
           </div>
-        </Card>
-      )}
-
-      {suggestions && suggestions.length > 0 && (
-        <Card accent={T.violet}>
-          <SectionTitle>Suggestions</SectionTitle>
-          {suggestions.map((s, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-              <span style={{ color: T.amber, fontWeight: 700 }}>›</span>
-              <span style={{ color: T.text, fontSize: 13 }}>{s}</span>
-            </div>
-          ))}
         </Card>
       )}
 
       {data_quality && (
         <Card>
           <SectionTitle>Data Quality</SectionTitle>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
-            {[
-              ["Rows",       data_quality.num_rows],
-              ["Columns",    data_quality.num_columns],
-              ["Duplicates", data_quality.duplicate_rows],
-              ["Missing cols", Object.keys(data_quality.missing_columns || {}).length],
-            ].map(([label, value]) => (
-              <div key={label} style={{ background: T.surfaceHi, border: `1px solid ${T.border}`, borderRadius: 6, padding: "10px 14px" }}>
-                <div style={{ color: T.textDim, fontSize: 11 }}>{label}</div>
-                <div style={{ color: "#fff", fontSize: 20, fontWeight: 800 }}>{value ?? "—"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {data_quality.target_distribution && (
+              <div>
+                <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                  Target Distribution
+                </div>
+                {Object.entries(data_quality.target_distribution).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${T.border}33` }}>
+                    <span style={{ color: T.text, fontSize: 12 }}>{k}</span>
+                    <span style={{ color: T.sky, fontSize: 12, fontWeight: 600 }}>{v.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
+            )}
+            {data_quality.sensitive_distribution && (
+              <div>
+                <div style={{ color: T.textDim, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                  Sensitive Group Distribution
+                </div>
+                {Object.entries(data_quality.sensitive_distribution).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${T.border}33` }}>
+                    <span style={{ color: T.text, fontSize: 12 }}>{k}</span>
+                    <span style={{ color: T.violet, fontSize: 12, fontWeight: 600 }}>{v.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {by_group && Object.keys(by_group).length > 0 && (
+        <Card>
+          <SectionTitle>Group-wise Metrics</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+            {Object.entries(by_group).map(([group, metrics]) => (
+              <GroupCard key={group} group={group} metrics={metrics} />
             ))}
           </div>
         </Card>
@@ -396,6 +518,7 @@ function ReportStep({ results, onReset }) {
     </div>
   );
 }
+
 
 /* ── MitigationStep ─────────────────────────────────────────────────────── */
 function MitigationStep({ uploadedFile, selectedTarget, selectedSensitive, uploadedModel }) {
@@ -553,7 +676,19 @@ const FairnessPage = ({ prefillFile, prefillTarget, prefillSensitive, prefillMod
   const handleSubmit = async (file, target, sensitive, predCol, trainBaseline, modelFile, wrapModel, dpThr, eoThr, fprThr, fnrThr) => {
     setUploadedFile(file); setSelectedTarget(target); setSelectedSensitive(sensitive); setUploadedModel(modelFile);
     setUploading(true); setTab(1);
-    const res = await analyzeDataset(file, target, sensitive, predCol, trainBaseline, modelFile, wrapModel);
+    const res = await analyzeDataset(
+      file,
+      target,
+      sensitive,
+      predCol,
+      trainBaseline,
+      modelFile,
+      wrapModel,
+      dpThr,
+      eoThr,
+      fprThr,
+      fnrThr,
+    );
     setResults(res); setUploading(false);
   };
 
